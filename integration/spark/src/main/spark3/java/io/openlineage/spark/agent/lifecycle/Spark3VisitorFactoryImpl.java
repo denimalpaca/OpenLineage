@@ -3,6 +3,7 @@ package io.openlineage.spark.agent.lifecycle;
 import com.google.common.collect.ImmutableList;
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.Dataset;
+import io.openlineage.client.OpenLineage.InputDataset;
 import io.openlineage.client.OpenLineage.OutputDataset;
 import io.openlineage.spark.api.DatasetFactory;
 import io.openlineage.spark.api.OpenLineageContext;
@@ -19,7 +20,7 @@ import scala.PartialFunction;
 class Spark3VisitorFactoryImpl extends BaseVisitorFactory {
 
   @Override
-  public List<PartialFunction<LogicalPlan, List<OpenLineage.OutputDataset>>> getOutputVisitors(
+  public List<PartialFunction<LogicalPlan, List<OutputDataset>>> getOutputVisitors(
       OpenLineageContext context) {
     DatasetFactory<OutputDataset> outputFactory = DatasetFactory.output(context.getOpenLineage());
     return ImmutableList.<PartialFunction<LogicalPlan, List<OutputDataset>>>builder()
@@ -30,6 +31,16 @@ class Spark3VisitorFactoryImpl extends BaseVisitorFactory {
         .add(new CreateTableLikeCommandVisitor(context))
         .add(new DropTableVisitor(context))
         .add(new AlterTableVisitor(context))
+        .build();
+  }
+
+  @Override
+  public List<PartialFunction<LogicalPlan, List<OpenLineage.InputDataset>>> getInputVisitors(
+      OpenLineageContext context) {
+    DatasetFactory<InputDataset> inputFactory = DatasetFactory.input(context.getOpenLineage());
+    return ImmutableList.<PartialFunction<LogicalPlan, List<InputDataset>>>builder()
+        .addAll(super.getInputVisitors(context))
+        .add(new DataSourceV2RelationVisitor(context, inputFactory))
         .build();
   }
 

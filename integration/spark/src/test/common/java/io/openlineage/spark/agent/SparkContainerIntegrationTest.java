@@ -334,6 +334,30 @@ public class SparkContainerIntegrationTest {
   }
 
   @Test
+  @EnabledIfSystemProperty(named = "spark.version", matches = SPARK_3) // Spark version >= 3.*
+  public void testWriteDeltaTableVersion() {
+    makePysparkContainerWithDefaultConf(
+            "testWriteDeltaTableVersion",
+            "--packages",
+            "io.delta:delta-core_2.12:1.0.0",
+            "/opt/spark_scripts/spark_write_delta_table_version.py")
+        .start();
+    verifyEvents("pysparkWriteDeltaTableVersionEnd.json");
+  }
+
+  @Test
+  @EnabledIfSystemProperty(named = "spark.version", matches = SPARK_3) // Spark version >= 3.*
+  public void testWriteIcebergTableVersion() {
+    makePysparkContainerWithDefaultConf(
+            "testWriteIcebergTableVersion",
+            "--packages",
+            "org.apache.iceberg:iceberg-spark3-runtime:0.12.0",
+            "/opt/spark_scripts/spark_write_iceberg_table_version.py")
+        .start();
+    verifyEvents("pysparkWriteIcebergTableVersionEnd.json");
+  }
+
+  @Test
   public void testAlterTable() {
     runPysparkContainerWithDefaultConf("testAlterTable", "spark_alter_table.py");
     verifyEvents("pysparkAlterTableAddColumnsEnd.json", "pysparkAlterTableRenameEnd.json");
