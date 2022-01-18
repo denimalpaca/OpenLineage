@@ -154,3 +154,5 @@ cython_debug/
 *.settings/
 
 gcloud-service-key.json
+
+client/java/src/main/java/io/openlineage/server/*
