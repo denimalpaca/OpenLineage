@@ -23,11 +23,18 @@ import org.apache.spark.sql.execution.QueryExecution;
 import org.apache.spark.sql.execution.SQLExecution;
 import org.apache.spark.sql.execution.ui.SparkListenerSQLExecutionEnd;
 import org.apache.spark.sql.execution.ui.SparkListenerSQLExecutionStart;
+import org.slf4j.LoggerFactory;
 import scala.PartialFunction;
 
 /** Returns deterministic fields for contexts */
 public class StaticExecutionContextFactory extends ContextFactory {
-  public static final Semaphore semaphore = new Semaphore(1);
+
+  // Create a semaphore with multiple permits so that jobs that launch multiple Spark SQL jobs,
+  // (i.e., Delta jobs that need to work with Delta logs as well as the target dataset) and fire
+  // multiple SparkListenerSQLExecutionStart events don't block waiting for the first SQL job to
+  // finish. The #waitForExecutionEnd method will wait for <i>all</i> acquired permits to be
+  // released before continuing.
+  public static final Semaphore semaphore = new Semaphore(5);
 
   public StaticExecutionContextFactory(EventEmitter eventEmitter) {
     super(eventEmitter);
@@ -36,13 +43,14 @@ public class StaticExecutionContextFactory extends ContextFactory {
   /**
    * The {@link OpenLineageSparkListener} is invoked by a {@link org.apache.spark.util.ListenerBus}
    * on a separate thread. In order for the tests to know that the listener events have been
-   * processed, they can invoke this method which will wait up to one second for the processing to
-   * complete. After that
+   * processed, they can invoke this method, which will wait up to one second for the processing to
+   * complete. If multiple SQL jobs have been executed, this method will wait for <i>all</i> jobs to
+   * trigger the SparkListenerSQLExecutionEnd event and release the acquired permit.
    *
    * @throws InterruptedException
    */
   public static void waitForExecutionEnd() throws InterruptedException, TimeoutException {
-    boolean acquired = semaphore.tryAcquire(5, TimeUnit.SECONDS);
+    boolean acquired = semaphore.tryAcquire(5, 5, TimeUnit.SECONDS);
     if (!acquired) {
       throw new TimeoutException(
           "Unable to acquire permit within expected timeout- "
@@ -110,7 +118,10 @@ public class StaticExecutionContextFactory extends ContextFactory {
                 @Override
                 public void start(SparkListenerSQLExecutionStart startEvent) {
                   try {
-                    semaphore.acquire();
+                    boolean acquired = semaphore.tryAcquire(1, TimeUnit.SECONDS);
+                    if (!acquired) {
+                      throw new RuntimeException("Timeout acquiring permit");
+                    }
                   } catch (InterruptedException e) {
                     throw new RuntimeException("Unable to acquire semaphore", e);
                   }
@@ -123,6 +134,7 @@ public class StaticExecutionContextFactory extends ContextFactory {
                     super.end(endEvent);
                   } finally {
                     // ALWAYS release the permit
+                    LoggerFactory.getLogger(getClass()).info("Released permit");
                     semaphore.release();
                   }
                 }
