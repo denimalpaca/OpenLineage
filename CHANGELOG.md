@@ -2,6 +2,9 @@
 
 ## [Unreleased](https://github.com/OpenLineage/OpenLineage/compare/0.5.1...HEAD)
 
+### Fixed
+* Made corrections to account for DeltaDataSource handling [@collado-mike](https://github.com/collado-mike)
+
 ## [0.5.1](https://github.com/OpenLineage/OpenLineage/compare/0.4.0...0.5.1)
 ### Added
 * Support for dbt-spark adapter [@mobuchowski](https://github.com/mobuchowski)
