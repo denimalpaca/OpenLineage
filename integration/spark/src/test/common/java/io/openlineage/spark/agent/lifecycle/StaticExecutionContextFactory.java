@@ -34,10 +34,17 @@ public class StaticExecutionContextFactory extends ContextFactory {
   // multiple SparkListenerSQLExecutionStart events don't block waiting for the first SQL job to
   // finish. The #waitForExecutionEnd method will wait for <i>all</i> acquired permits to be
   // released before continuing.
-  public static final Semaphore semaphore = new Semaphore(5);
+  public static final int NUM_PERMITS = 5;
+  public static final Semaphore semaphore = new Semaphore(NUM_PERMITS);
 
   public StaticExecutionContextFactory(EventEmitter eventEmitter) {
     super(eventEmitter);
+  }
+
+  @Override
+  public void close() {
+    super.close();
+    semaphore.release(NUM_PERMITS);
   }
 
   /**
@@ -50,13 +57,13 @@ public class StaticExecutionContextFactory extends ContextFactory {
    * @throws InterruptedException
    */
   public static void waitForExecutionEnd() throws InterruptedException, TimeoutException {
-    boolean acquired = semaphore.tryAcquire(5, 5, TimeUnit.SECONDS);
+    boolean acquired = semaphore.tryAcquire(NUM_PERMITS, 10, TimeUnit.SECONDS);
     if (!acquired) {
       throw new TimeoutException(
           "Unable to acquire permit within expected timeout- "
               + "OpenLineageSparkListener processing may not have completed correctly");
     }
-    semaphore.release();
+    semaphore.release(NUM_PERMITS);
   }
 
   @Override
@@ -133,7 +140,7 @@ public class StaticExecutionContextFactory extends ContextFactory {
                   try {
                     super.end(endEvent);
                   } finally {
-                    // ALWAYS release the permit
+                    // ALWAYS release the permits
                     LoggerFactory.getLogger(getClass()).info("Released permit");
                     semaphore.release();
                   }
