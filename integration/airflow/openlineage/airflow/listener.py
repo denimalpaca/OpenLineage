@@ -12,7 +12,6 @@ from openlineage.airflow.extractors import ExtractorManager
 from openlineage.airflow.utils import DagUtils, get_task_location, get_job_name, get_custom_facets
 
 if TYPE_CHECKING:
-    from airflow.models import TaskInstance
     from airflow.models import TaskInstance, BaseOperator
     from sqlalchemy.orm import Session
 
