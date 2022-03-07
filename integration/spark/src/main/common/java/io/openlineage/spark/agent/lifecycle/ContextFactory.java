@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
 package io.openlineage.spark.agent.lifecycle;
 
 import io.openlineage.client.OpenLineage;
@@ -46,7 +48,6 @@ public class ContextFactory {
             .openLineage(new OpenLineage(OpenLineageClient.OPEN_LINEAGE_CLIENT_URI))
             .queryExecution(queryExecution)
             .build();
-
     OpenLineageRunEventBuilder runEventBuilder =
         new OpenLineageRunEventBuilder(olContext, handlerFactory);
     return new SparkSQLExecutionContext(

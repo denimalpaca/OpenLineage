@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
 package io.openlineage.spark.agent.lifecycle;
 
 import io.openlineage.client.OpenLineage;
@@ -145,10 +147,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
             jobStart);
 
     log.debug("Posting event for start {}: {}", executionId, event);
-    // don't send start events yet - uncomment this when the tests are updated to handle both
-    // sql execution start events and job start events
-
-    //    eventEmitter.emit(event);
+    eventEmitter.emit(event);
   }
 
   @Override

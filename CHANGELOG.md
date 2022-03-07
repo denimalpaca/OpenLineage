@@ -1,6 +1,46 @@
 # Changelog
 
-## [Unreleased](https://github.com/OpenLineage/OpenLineage/compare/0.5.1...HEAD)
+## [Unreleased](https://github.com/OpenLineage/OpenLineage/compare/0.6.1...HEAD)
+
+## [0.6.1](https://github.com/OpenLineage/OpenLineage/compare/0.6.0...0.6.1)
+### Fixed
+* Catch possible failures when emitting events and log them [@mobuchowski](https://github.com/mobuchowski)
+
+## [0.6.0](https://github.com/OpenLineage/OpenLineage/compare/0.5.2...0.6.0)
+### Added
+* Extract source code of PythonOperator code similar to SQL facet [@mobuchowski](https://github.com/mobuchowski)
+* Add DatasetLifecycleStateDatasetFacet to spec [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+* Airflow: extract source code from BashOperator [@mobuchowski](https://github.com/mobuchowski)
+* Add generic facet to collect environmental properties (EnvironmentFacet) [@harishsune](https://github.com/harishsune)
+* Update Airflow connection parsing to exclude AWS keys and extraneous Snowflake params [@collado-mike](https://github.com/collado-mike)
+* OpenLineage sensor for OpenLineage-Dagster integration [@dalinkim](https://github.com/dalinkim)
+* Java-client: make generator generate enums as well [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+
+### Fixed
+
+* Airflow: increase import timeout in tests, fix exit from integration [@mobuchowski](https://github.com/mobuchowski)
+* Reduce logging level for import errors to info [@rossturk](https://github.com/rossturk)
+* Remove AWS secret keys and extraneous Snowflake parameters from connection uri [@collado-mike](https://github.com/collado-mike)
+* Convert to LifecycleStateChangeDatasetFacet [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+
+## [0.5.2](https://github.com/OpenLineage/OpenLineage/compare/0.5.1...0.5.2)
+### Added
+
+* Proxy backend example using `Kafka` [@wslulciuc](https://github.com/wslulciuc)
+* Support Databricks Delta Catalog naming convention with DatabricksDeltaHandler [@wjohnson](https://github.com/wjohnson)
+* Add javadoc as part of build task [@mobuchowski](https://github.com/mobuchowski)
+* Include TableStateChangeFacet in non V2 commands for Spark [@mr-yusupov](https://github.com/mr-yusupov)
+* Support for SqlDWRelation on Databricks' Azure Synapse/SQL DW Connector [@wjohnson](https://github.com/wjohnson)
+* Implement input visitors for v2 commands [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+* Enabled SparkListenerJobStart events to trigger open lineage events [@collado-mike](https://github.com/collado-mike)
+
+### Fixed
+
+* dbt: job namespaces for given dbt run match each other [@mobuchowski](https://github.com/mobuchowski)
+* Fix Breaking SnowflakeOperator Changes from OSS Airflow [@denimalpaca](https://github.com/denimalpaca)
+
+### Fixed
+* Made corrections to account for DeltaDataSource handling [@collado-mike](https://github.com/collado-mike)
 
 ## [0.5.1](https://github.com/OpenLineage/OpenLineage/compare/0.4.0...0.5.1)
 ### Added

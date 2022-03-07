@@ -1,14 +1,4 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0.
 import json
 import logging
 import os
@@ -18,8 +8,10 @@ import psycopg2
 import time
 import requests
 from retrying import retry
+from openlineage.common.test import match, setup_jinja
 
-from openlineage.common.test import match
+
+env = setup_jinja()
 
 logging.basicConfig(
     format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
@@ -36,7 +28,7 @@ airflow_db_conn = None
     wait_exponential_multiplier=1000,
     wait_exponential_max=10000
 )
-def wait_for_dag(dag_id):
+def wait_for_dag(dag_id) -> bool:
     log.info(
         f"Waiting for DAG '{dag_id}'..."
     )
@@ -56,9 +48,10 @@ def wait_for_dag(dag_id):
 
     log.info(f"DAG '{dag_id}' state set to '{state}'.")
     if state == 'failed':
-        sys.exit(1)
+        return False
     elif state != "success":
         raise Exception('Retry!')
+    return True
 
 
 def check_matches(expected_events, actual_events) -> bool:
@@ -126,8 +119,11 @@ def get_events(job_name: str = None):
     return received_requests
 
 
+@retry(
+    wait_fixed=2000,
+    stop_max_delay=15000
+)
 def setup_db():
-    time.sleep(10)
     global airflow_db_conn
     airflow_db_conn = psycopg2.connect(
         host="postgres",
@@ -141,10 +137,11 @@ def setup_db():
 def test_integration(dag_id, request_path):
     log.info(f"Checking dag {dag_id}")
     # (1) Wait for DAG to complete
-    wait_for_dag(dag_id)
+    if not wait_for_dag(dag_id):
+        sys.exit(1)
     # (2) Read expected events
     with open(request_path, 'r') as f:
-        expected_events = json.load(f)
+        expected_events = json.loads(env.from_string(f.read()).render())
 
     # (3) Get actual events
     actual_events = get_events()
@@ -158,8 +155,8 @@ def test_integration(dag_id, request_path):
 def test_integration_ordered(dag_id, request_dir: str):
     log.info(f"Checking dag {dag_id}")
     # (1) Wait for DAG to complete
-    wait_for_dag(dag_id)
-
+    if not wait_for_dag(dag_id):
+        sys.exit(1)
     # (2) Find and read events in given directory on order of file names.
     #     The events have to arrive at the server in the same order.
     event_files = sorted(
@@ -169,7 +166,7 @@ def test_integration_ordered(dag_id, request_dir: str):
     expected_events = []
     for file in event_files:
         with open(os.path.join(request_dir, file), 'r') as f:
-            expected_events.append(json.load(f))
+            expected_events.append(json.loads(env.from_string(f.read()).render()))
 
     # (3) Get actual events with job names starting with dag_id
     actual_events = get_events(dag_id)
@@ -189,5 +186,6 @@ if __name__ == '__main__':
     test_integration('great_expectations_validation', 'requests/great_expectations.json')
     test_integration('bigquery_orders_popular_day_of_week', 'requests/bigquery.json')
     test_integration('dbt_dag', 'requests/dbt.json')
+    test_integration('source_code_dag', 'requests/source_code.json')
     test_integration('custom_extractor', 'requests/custom_extractor.json')
     test_integration_ordered('event_order', 'requests/order')

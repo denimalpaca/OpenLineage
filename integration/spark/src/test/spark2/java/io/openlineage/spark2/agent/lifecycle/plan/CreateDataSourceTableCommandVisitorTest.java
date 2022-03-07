@@ -1,15 +1,18 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
 package io.openlineage.spark2.agent.lifecycle.plan;
 
-import static io.openlineage.spark.agent.facets.TableStateChangeFacet.StateChange.CREATE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.openlineage.client.OpenLineage;
 import io.openlineage.spark.agent.SparkAgentTestExtension;
-import io.openlineage.spark.agent.facets.TableStateChangeFacet;
 import io.openlineage.spark.agent.lifecycle.plan.CreateDataSourceTableCommandVisitor;
 import java.net.URI;
 import java.util.List;
+import org.apache.spark.SparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier$;
 import org.apache.spark.sql.catalyst.catalog.CatalogStorageFormat$;
@@ -20,18 +23,23 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import scala.Option;
 import scala.collection.Map$;
 import scala.collection.immutable.HashMap;
 
-@ExtendWith(SparkAgentTestExtension.class)
 class CreateDataSourceTableCommandVisitorTest {
+
+  SparkSession session = mock(SparkSession.class);
+
+  @BeforeEach
+  public void setUp() {
+    when(session.sparkContext()).thenReturn(mock(SparkContext.class));
+  }
 
   @Test
   void testCreateDataSourceTableCommand() {
-    SparkSession session = SparkSession.builder().master("local").getOrCreate();
     CreateDataSourceTableCommandVisitor visitor =
         new CreateDataSourceTableCommandVisitor(SparkAgentTestExtension.newContext(session));
 
@@ -63,8 +71,8 @@ class CreateDataSourceTableCommandVisitorTest {
     OpenLineage.OutputDataset outputDataset = datasets.get(0);
 
     assertEquals(
-        new TableStateChangeFacet(CREATE),
-        outputDataset.getFacets().getAdditionalProperties().get("tableStateChange"));
+        OpenLineage.LifecycleStateChangeDatasetFacet.LifecycleStateChange.CREATE,
+        outputDataset.getFacets().getLifecycleStateChange().getLifecycleStateChange());
     assertEquals("directory", outputDataset.getName());
     assertEquals("s3://bucket", outputDataset.getNamespace());
   }

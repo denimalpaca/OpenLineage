@@ -1,6 +1,9 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
 package io.openlineage.spark.agent.lifecycle;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +37,7 @@ import org.apache.spark.sql.catalyst.expressions.ExprId;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.NamedExpression;
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.CatalogFileIndex;
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation;
 import org.apache.spark.sql.execution.datasources.InsertIntoDataSourceCommand;
@@ -47,10 +51,12 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import org.postgresql.Driver;
 import scala.Option;
 import scala.Tuple2;
+import scala.collection.Seq;
 import scala.collection.Seq$;
 import scala.collection.immutable.HashMap;
 import scala.collection.immutable.Map$;
@@ -63,7 +69,6 @@ class LogicalPlanSerializerTest {
 
   @Test
   public void testSerializeLogicalPlan() throws IOException {
-    SparkSession session = SparkSession.builder().master("local").getOrCreate();
     String jdbcUrl = "jdbc:postgresql://postgreshost:5432/sparkdata";
     String sparkTableName = "my_spark_table";
     scala.collection.immutable.Map<String, String> map =
@@ -80,7 +85,7 @@ class LogicalPlanSerializerTest {
                 }),
             new Partition[] {},
             new JDBCOptions(jdbcUrl, sparkTableName, map),
-            session);
+            mock(SparkSession.class));
     LogicalRelation logicalRelation =
         new LogicalRelation(
             relation,
@@ -121,6 +126,45 @@ class LogicalPlanSerializerTest {
     assertThat(aggregateActualNode).satisfies(new MatchesMapRecursively(expectedAggregateNode));
     assertThat(logicalRelationActualNode)
         .satisfies(new MatchesMapRecursively(expectedLogicalRelationNode));
+  }
+
+  @Test
+  public void testSerializeLogicalPlanReturnsAlwaysValidJson() throws IOException {
+    LogicalPlan notSerializablePlan =
+        new LogicalPlan() {
+          @Override
+          public Seq<Attribute> output() {
+            return null;
+          }
+
+          @Override
+          public Seq<LogicalPlan> children() {
+            return null;
+          }
+
+          @Override
+          public Object productElement(int n) {
+            return null;
+          }
+
+          @Override
+          public int productArity() {
+            return 0;
+          }
+
+          @Override
+          public boolean canEqual(Object that) {
+            return false;
+          }
+        };
+    LogicalPlanSerializer logicalPlanSerializer = new LogicalPlanSerializer();
+
+    final ObjectMapper mapper = new ObjectMapper();
+    try {
+      mapper.readTree(logicalPlanSerializer.serialize(notSerializablePlan));
+    } catch (IOException e) {
+      Assert.fail();
+    }
   }
 
   @Test
@@ -212,7 +256,6 @@ class LogicalPlanSerializerTest {
 
   @Test
   public void testSerializeBigQueryPlan() throws IOException {
-    SparkSession session = SparkSession.builder().master("local").getOrCreate();
     String query = "SELECT date FROM bigquery-public-data.google_analytics_sample.test";
     System.setProperty("GOOGLE_CLOUD_PROJECT", "test_serialization");
     SparkBigQueryConfig config =
@@ -237,7 +280,7 @@ class LogicalPlanSerializerTest {
         new BigQueryRelation(
             config,
             TableInfo.newBuilder(TableId.of("dataset", "test"), new TestTableDefinition()).build(),
-            SQLContext.getOrCreate(session.sparkContext()));
+            mock(SQLContext.class));
 
     LogicalRelation logicalRelation =
         new LogicalRelation(
