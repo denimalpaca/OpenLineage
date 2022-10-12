@@ -50,3 +50,42 @@ class Serde:
             sort_keys=True,
             default=lambda o: f"<<non-serializable: {type(o).__qualname__}>>"
         )
+
+    @classmethod
+    def to_atlan_process(cls, obj):
+        def _create_process_dict():
+            return {
+                "name": obj.name,
+                "qualifiedName": obj.qualifiedName,
+                "connectorName": obj.connectorName,
+                "connectionName": obj.connectionName,
+                "connectionQualifiedName": obj.baseQualifiedName
+            }
+
+        def _create_table_dicts(table_name):
+            return {
+                "typeName": "Table",
+                "uniqueAttributes": {
+                    "qualifiedName": table_name
+                }
+            }
+
+        return json.dumps(
+            {
+                "entities": [
+                    {
+                        "typeName": "Process",
+                        "attributes": _create_process_dict(),
+                        "relationshipAttributes": {
+                            "inputs": [
+                                _create_table_dicts(table_name) for table_name in obj.inputQualifiedNames
+                            ],
+                            "outputs": [
+                                _create_table_dicts(table_name) for table_name in obj.outputQualifiedNames
+                            ]
+                        }
+                    }
+                ]
+            }
+        )
+

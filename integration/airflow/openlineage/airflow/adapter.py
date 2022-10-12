@@ -1,6 +1,7 @@
 # Copyright 2018-2022 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
+from hashlib import md5
 import os
 import logging
 import uuid
@@ -13,7 +14,7 @@ from openlineage.client import OpenLineageClient, OpenLineageClientOptions, set_
 from openlineage.client.facet import DocumentationJobFacet, SourceCodeLocationJobFacet, \
     NominalTimeRunFacet, ParentRunFacet, BaseFacet
 from openlineage.airflow.utils import redact_with_exclusions
-from openlineage.client.run import RunEvent, RunState, Run, Job
+from openlineage.client.run import AtlanProcess, RunEvent, RunState, Run, Job
 import requests.exceptions
 
 
@@ -66,6 +67,45 @@ class OpenLineageAdapter:
             return self.get_or_create_openlineage_client().emit(event)
         except requests.exceptions.RequestException:
             log.exception(f"Failed to emit OpenLineage event of id {event.run.runId}")
+
+    def get_or_create_atlan_client(self) -> OpenLineageClient:
+        # Backcomp with Marquez integration
+        url = os.getenv("ATLAN_URL")
+        api_key = os.getenv("ATLAN_API_KEY")
+        log.info(f"Sending lineage events to {url}")
+        client = OpenLineageClient(url, OpenLineageClientOptions(
+            api_key=api_key
+        ))
+        return client
+
+    def convert_run_event_to_atlan_process(self, event: RunEvent, task: TaskMetadata) -> AtlanProcess:
+        # what is actually the difference between the tenant URL and the standard URL?
+        # i.e., where does the "default/mongodb/" come from in the qualified name?
+        tenant = os.environ.get("ATLAN_URL")
+        inputs = [dataset.name for dataset in event.inputs]
+        outputs = [dataset.name for dataset in event.outputs]
+        name = "{inputs} -> {outputs}".format(inputs=",".join(inputs), outputs=",".join(outputs))
+        scheme = task.source["scheme"]
+        base_qualified_name = "default/{scheme}/{tenent}.atlan.com".format(scheme=scheme, tenant=tenant)
+
+        return AtlanProcess(
+            name=name,
+            baseQualifiedName=base_qualified_name,
+            qualifiedName=f"{base_qualified_name}/{md5(name)}",
+            connectorName=scheme,
+            connectionName=scheme,
+            inputQualifiedNames=[f"{base_qualified_name}/{name}" for name in inputs],
+            outputQualifiedNames=[f"{base_qualified_name}/{name}" for name in outputs]
+        )
+
+    def emit_to_atlan(self, event: RunEvent, task: Optional[TaskMetadata]):
+        """Emits an AtlanProcess to the Atlan endpoint"""
+        if not task:
+            log.exception("No task metadata was found, cannot emit lineage.")
+            return
+        
+        atlan_event = redact_with_exclusions(self.convert_run_event_to_atlan_process(event, task))
+        return self.get_or_create_atlan_client().emit_to_atlan(atlan_event)
 
     def start_task(
         self,

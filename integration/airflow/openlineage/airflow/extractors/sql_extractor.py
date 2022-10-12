@@ -100,6 +100,7 @@ class SqlExtractor(BaseExtractor):
         )
 
         run_facets = {**run_facets, **db_specific_run_facets}
+        source_facets = {"scheme": self.scheme, "database": database}
 
         return TaskMetadata(
             name=task_name,
@@ -107,6 +108,7 @@ class SqlExtractor(BaseExtractor):
             outputs=[ds.to_openlineage_dataset() for ds in outputs],
             run_facets=run_facets,
             job_facets=job_facets,
+            source_facets=source_facets
         )
 
     def _conn_id(self) -> str:

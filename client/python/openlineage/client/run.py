@@ -77,3 +77,15 @@ class RunEvent(RedactMixin):
     outputs: Optional[List[Dataset]] = attr.ib(factory=list)    # type: ignore
 
     _skip_redact: List[str] = ['eventType', 'eventTime', 'producer']
+
+
+@attr.s
+class AtlanProcess(RedactMixin):
+    name: str = attr.ib()
+    baseQualifiedName: str = attr.ib()
+    qualifiedName: str = attr.ib()
+    connectorName: str = attr.ib()
+    connectionName: str = attr.ib()
+    connectionQualifiedName: str = attr.ib()
+    inputQualifiedNames: List[str] = attr.ib(factory=list)     # type: ignore
+    outputQualifiedNames: List[str] = attr.ib(factory = list)     # type: ignore

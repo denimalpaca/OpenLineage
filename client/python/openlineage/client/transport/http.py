@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from requests import Session
     from requests.adapters import HTTPAdapter
 
-from openlineage.client.run import RunEvent
+from openlineage.client.run import AtlanProcess, RunEvent
 from openlineage.client.serde import Serde
 from openlineage.client.transport.transport import Config, Transport
 from openlineage.client.utils import get_only_specified_fields, try_import_subclass_from_string
@@ -117,6 +117,20 @@ class HttpTransport(Transport):
 
     def emit(self, event: RunEvent):
         event = Serde.to_json(event)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug(f"Sending openlineage event {event}")
+        resp = self.session.post(
+            urljoin(self.url, self.endpoint),
+            event,
+            timeout=self.timeout,
+            verify=self.verify
+        )
+        resp.raise_for_status()
+        return resp
+
+    def emit_to_atlan(self, event: AtlanProcess):
+        event = Serde.to_atlan_process(event)
+        self.endpoint = "/api/meta/entity/bulk#createProcess"
         if log.isEnabledFor(logging.DEBUG):
             log.debug(f"Sending openlineage event {event}")
         resp = self.session.post(
