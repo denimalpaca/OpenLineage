@@ -93,7 +93,7 @@ class HttpTransport(Transport):
     def __init__(self, config: HttpConfig):
         url = config.url.strip()
 
-        log.debug(f"Constructing openlineage client to send events to {url}")
+        log.info(f"Constructing openlineage client to send events to {url}")
         try:
             from urllib3.util import parse_url
             parsed = parse_url(url)
@@ -129,18 +129,32 @@ class HttpTransport(Transport):
         return resp
 
     def emit_to_atlan(self, event: AtlanProcess):
-        event = Serde.to_atlan_process(event)
-        self.endpoint = "/api/meta/entity/bulk#createProcess"
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug(f"Sending openlineage event {event}")
-        resp = self.session.post(
-            urljoin(self.url, self.endpoint),
-            event,
-            timeout=self.timeout,
-            verify=self.verify
-        )
-        resp.raise_for_status()
-        return resp
+        def _send(event):
+            log.info(f"Sending openlineage event {event}")
+            resp = self.session.post(
+                urljoin(self.url, self.endpoint),
+                event,
+                timeout=self.timeout,
+                verify=self.verify
+            )
+            resp.raise_for_status()
+            return resp
+        # Send database update
+        db_event = Serde.to_atlan_database(event)
+        self.endpoint = "/api/meta/entity/bulk#createDatabases"
+        _send(db_event)
+        # Send schema update
+        schema_event = Serde.to_atlan_schema(event)
+        self.endpoint = "/api/meta/entity/bulk#createSchemas"
+        _send(schema_event)
+        # Send table updates
+        table_event = Serde.to_atlan_table(event)
+        self.endpoint = "/api/meta/entity/bulk#createTables"
+        _send(table_event)
+        # Send process updates
+        process_event = Serde.to_atlan_process(event)
+        self.endpoint = "/api/meta/entity/bulk#createProcesses"
+        _send(process_event)
 
     def _add_auth(self, token_provider: TokenProvider):
         self.session.headers.update({

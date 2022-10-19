@@ -114,6 +114,14 @@ class DocumentationDatasetFacet(BaseFacet):
 
 
 @attr.s
+class SourceFacet(BaseFacet):
+    scheme: str = attr.ib()
+    database: str = attr.ib()
+
+    _additional_skip_redact: List[str] = ['scheme', 'database']
+
+
+@attr.s
 class SchemaField(RedactMixin):
     name: str = attr.ib()
     type: str = attr.ib()

@@ -5,7 +5,7 @@ from hashlib import md5
 import os
 import logging
 import uuid
-from typing import Optional, Dict, Type
+from typing import Optional, Dict, Type, Union
 
 from openlineage.airflow.version import __version__ as OPENLINEAGE_AIRFLOW_VERSION
 from openlineage.airflow.extractors import TaskMetadata
@@ -79,29 +79,33 @@ class OpenLineageAdapter:
         return client
 
     def convert_run_event_to_atlan_process(self, event: RunEvent, task: TaskMetadata) -> AtlanProcess:
-        # what is actually the difference between the tenant URL and the standard URL?
-        # i.e., where does the "default/mongodb/" come from in the qualified name?
-        tenant = os.environ.get("ATLAN_URL")
+        scheme = task.source_facets.get("source").scheme  # this may need to come from somewhere else?
+        # database = task.source_facets.get("source").database
+        tenant = os.environ.get("ATLAN_TENANT")
         inputs = [dataset.name for dataset in event.inputs]
         outputs = [dataset.name for dataset in event.outputs]
         name = "{inputs} -> {outputs}".format(inputs=",".join(inputs), outputs=",".join(outputs))
-        scheme = task.source["scheme"]
-        base_qualified_name = "default/{scheme}/{tenent}.atlan.com".format(scheme=scheme, tenant=tenant)
+        log.info(f"Task: {task}")
+        connectionQualifiedName = "default/snowflake/1666120689" # this comes from the Atlan UI, under Property for the connection
+        ds = inputs[0] if inputs else outputs[0]
+        database, schema, _ = ds.split(".")
 
         return AtlanProcess(
             name=name,
-            baseQualifiedName=base_qualified_name,
-            qualifiedName=f"{base_qualified_name}/{md5(name)}",
+            connectionQualifiedName=connectionQualifiedName,
+            qualifiedName=f"{connectionQualifiedName}/{md5(name.encode('utf-8')).hexdigest()}",
             connectorName=scheme,
             connectionName=scheme,
-            inputQualifiedNames=[f"{base_qualified_name}/{name}" for name in inputs],
-            outputQualifiedNames=[f"{base_qualified_name}/{name}" for name in outputs]
+            databaseName=database,
+            schemaName=schema,
+            inputTableQualifiedNames=[f"{connectionQualifiedName}/{name.replace('.', '/')}" for name in inputs],
+            outputTableQualifiedNames=[f"{connectionQualifiedName}/{name.replace('.', '/')}" for name in outputs]
         )
 
     def emit_to_atlan(self, event: RunEvent, task: Optional[TaskMetadata]):
         """Emits an AtlanProcess to the Atlan endpoint"""
-        if not task:
-            log.exception("No task metadata was found, cannot emit lineage.")
+        if not task or not task.source_facets.get("source", None):
+            log.exception(f"Appropriate task metadata was not found, cannot emit lineage to Atlan.\nTask: {task}")
             return
         
         atlan_event = redact_with_exclusions(self.convert_run_event_to_atlan_process(event, task))
@@ -191,6 +195,7 @@ class OpenLineageAdapter:
             producer=_PRODUCER
         )
         self.emit(event)
+        self.emit_to_atlan(event, task)
 
     def fail_task(
         self,

@@ -10,7 +10,7 @@ from openlineage.airflow.extractors.dbapi_utils import (
 )
 from openlineage.airflow.utils import get_connection
 from openlineage.airflow.extractors.base import BaseExtractor, TaskMetadata
-from openlineage.client.facet import BaseFacet, SqlJobFacet
+from openlineage.client.facet import BaseFacet, SqlJobFacet, SourceFacet
 from openlineage.common.sql import SqlMeta, parse, DbTableMeta
 from openlineage.common.dataset import Dataset, Source
 from abc import abstractmethod
@@ -100,7 +100,7 @@ class SqlExtractor(BaseExtractor):
         )
 
         run_facets = {**run_facets, **db_specific_run_facets}
-        source_facets = {"scheme": self.scheme, "database": database}
+        source_facets = {"source": SourceFacet(scheme=self.scheme, database=database)}
 
         return TaskMetadata(
             name=task_name,
