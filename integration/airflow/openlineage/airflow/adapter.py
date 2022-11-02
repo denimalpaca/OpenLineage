@@ -1,10 +1,11 @@
 # Copyright 2018-2022 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
+from hashlib import md5
 import os
 import logging
 import uuid
-from typing import Optional, Dict, Type
+from typing import Optional, Dict, Type, Union
 
 from openlineage.airflow.version import __version__ as OPENLINEAGE_AIRFLOW_VERSION
 from openlineage.airflow.extractors import TaskMetadata
@@ -13,7 +14,7 @@ from openlineage.client import OpenLineageClient, OpenLineageClientOptions, set_
 from openlineage.client.facet import DocumentationJobFacet, SourceCodeLocationJobFacet, \
     NominalTimeRunFacet, ParentRunFacet, BaseFacet
 from openlineage.airflow.utils import redact_with_exclusions
-from openlineage.client.run import RunEvent, RunState, Run, Job
+from openlineage.client.run import AtlanProcess, RunEvent, RunState, Run, Job
 import requests.exceptions
 
 
@@ -66,6 +67,49 @@ class OpenLineageAdapter:
             return self.get_or_create_openlineage_client().emit(event)
         except requests.exceptions.RequestException:
             log.exception(f"Failed to emit OpenLineage event of id {event.run.runId}")
+
+    def get_or_create_atlan_client(self) -> OpenLineageClient:
+        # Backcomp with Marquez integration
+        url = os.getenv("ATLAN_URL")
+        api_key = os.getenv("ATLAN_API_KEY")
+        log.info(f"Sending lineage events to {url}")
+        client = OpenLineageClient(url, OpenLineageClientOptions(
+            api_key=api_key
+        ))
+        return client
+
+    def convert_run_event_to_atlan_process(self, event: RunEvent, task: TaskMetadata) -> AtlanProcess:
+        scheme = task.source_facets.get("source").scheme  # this may need to come from somewhere else?
+        # database = task.source_facets.get("source").database
+        tenant = os.environ.get("ATLAN_TENANT")
+        inputs = [dataset.name for dataset in event.inputs]
+        outputs = [dataset.name for dataset in event.outputs]
+        name = "{inputs} -> {outputs}".format(inputs=",".join(inputs), outputs=",".join(outputs))
+        log.info(f"Task: {task}")
+        connectionQualifiedName = "default/snowflake/1666120689" # this comes from the Atlan UI, under Property for the connection
+        ds = inputs[0] if inputs else outputs[0]
+        database, schema, _ = ds.split(".")
+
+        return AtlanProcess(
+            name=name,
+            connectionQualifiedName=connectionQualifiedName,
+            qualifiedName=f"{connectionQualifiedName}/{md5(name.encode('utf-8')).hexdigest()}",
+            connectorName=scheme,
+            connectionName=scheme,
+            databaseName=database,
+            schemaName=schema,
+            inputTableQualifiedNames=[f"{connectionQualifiedName}/{name.replace('.', '/')}" for name in inputs],
+            outputTableQualifiedNames=[f"{connectionQualifiedName}/{name.replace('.', '/')}" for name in outputs]
+        )
+
+    def emit_to_atlan(self, event: RunEvent, task: Optional[TaskMetadata]):
+        """Emits an AtlanProcess to the Atlan endpoint"""
+        if not task or not task.source_facets.get("source", None):
+            log.exception(f"Appropriate task metadata was not found, cannot emit lineage to Atlan.\nTask: {task}")
+            return
+        
+        atlan_event = redact_with_exclusions(self.convert_run_event_to_atlan_process(event, task))
+        return self.get_or_create_atlan_client().emit_to_atlan(atlan_event)
 
     def start_task(
         self,
@@ -151,6 +195,7 @@ class OpenLineageAdapter:
             producer=_PRODUCER
         )
         self.emit(event)
+        self.emit_to_atlan(event, task)
 
     def fail_task(
         self,

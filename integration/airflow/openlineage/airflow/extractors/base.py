@@ -27,6 +27,7 @@ class TaskMetadata:
     outputs: List[Dataset] = attr.ib(factory=list)
     run_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
     job_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
+    source_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
 
 
 class BaseExtractor(ABC, LoggingMixin):

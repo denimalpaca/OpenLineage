@@ -10,7 +10,7 @@ if typing.TYPE_CHECKING:
     from requests import Session
     from requests.adapters import HTTPAdapter
 
-from openlineage.client.run import RunEvent
+from openlineage.client.run import AtlanProcess, RunEvent
 from openlineage.client.transport import Transport, get_default_factory
 from openlineage.client.transport.http import HttpTransport, HttpConfig
 
@@ -67,6 +67,9 @@ class OpenLineageClient:
             log.error("Tried to emit OpenLineage event, but transport is not configured.")
         else:
             self.transport.emit(event)
+
+    def emit_to_atlan(self, event: AtlanProcess):
+        self.transport.emit_to_atlan(event)
 
     @classmethod
     def from_environment(cls):
